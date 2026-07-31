@@ -8,6 +8,10 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
@@ -17,7 +21,7 @@
       <h1 class="text-2xl font-bold flex items-center gap-2">
         <i class="fa-solid fa-graduation-cap"></i> TOEIC 多益單字學習神器
       </h1>
-      <span class="text-sm bg-indigo-500 px-3 py-1 rounded-full">離線儲存 ‧ 下拉多選 ‧ 聽音自動發音 ‧ 歷程紀錄</span>
+      <span id="syncHeaderBadge" class="text-sm bg-indigo-500 px-3 py-1 rounded-full">離線儲存 ‧ 下拉多選 ‧ 聽音自動發音 ‧ 歷程紀錄</span>
     </div>
   </header>
 
@@ -26,6 +30,21 @@
     <!-- 左側面板：單字庫管理 & 上傳 -->
     <div class="md:col-span-1 space-y-6">
       
+      <!-- 跨裝置同步設定卡片 -->
+      <div class="bg-indigo-900 text-white p-5 rounded-2xl shadow-sm border border-indigo-800 space-y-3">
+        <h2 class="text-lg font-bold flex items-center gap-2 text-indigo-200">
+          <i class="fa-solid fa-rotate"></i> 跨裝置自動即時同步
+        </h2>
+        <p class="text-xs text-indigo-300">輸入自訂金鑰，即可在不同裝置之間即時同步單字庫與學習紀錄。</p>
+        <div class="space-y-2">
+          <input id="syncKeyInput" type="text" placeholder="輸入專屬同步密鑰 (如: mytoeic)" class="w-full p-2 text-sm rounded-lg border-0 text-slate-800 focus:outline-none">
+          <button onclick="enableLiveSync()" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-1">
+            <i class="fa-solid fa-plug"></i> 連線同步
+          </button>
+        </div>
+        <div id="syncStatus" class="text-xs text-indigo-200 pt-1">目前狀態：單機區域儲存中</div>
+      </div>
+
       <!-- 數據管理 -->
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
         <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-indigo-600">
@@ -243,7 +262,7 @@
   </main>
 
   <footer class="bg-slate-100 border-t border-slate-200 text-center py-4 text-xs text-slate-400">
-    💡 提示：本網頁資料會自動儲存在您的本地瀏覽器快取 (Local Storage) 中，下次使用時不需再次上傳。
+    💡 提示：本網頁資料會自動儲存在您的本地瀏覽器快取 (Local Storage) 中，若啟用同步金鑰則自動上雲端。
   </footer>
 
   <!-- JS 邏輯區 -->
@@ -256,9 +275,11 @@
     let currentQuizIndex = 0;
     let currentCorrectAnswer = "";
     let isTransitioning = false; 
-
-    // 用來記錄當前這一次測驗所有做過題目的對錯紀錄
     let sessionResults = []; 
+
+    // Firebase 狀態變數
+    let dbRef = null;
+    let isSyncing = false;
 
     window.onload = function() {
       if (localStorage.getItem("toeic_words")) {
@@ -286,6 +307,13 @@
       renderHistoryList();
       updateWrongCountBadge();
 
+      // 自動讀取並連線儲存的同步金鑰
+      const savedKey = localStorage.getItem("toeic_sync_key");
+      if (savedKey) {
+        document.getElementById("syncKeyInput").value = savedKey;
+        enableLiveSync();
+      }
+
       // 點擊空白處時關閉類別下拉選單
       document.addEventListener("click", function(event) {
         const dropdown = document.getElementById("quizCategoryDropdown");
@@ -295,17 +323,101 @@
       });
     };
 
+    // ================== Firebase 同步邏輯 ==================
+    function enableLiveSync() {
+      const syncKey = document.getElementById("syncKeyInput").value.trim();
+      if (!syncKey) {
+        alert("請輸入您的專屬同步金鑰！");
+        return;
+      }
+
+      const firebaseConfig = {
+        databaseURL: "https://rong-toeic-app-default-rtdb.asia-southeast1.firebasedatabase.app/"
+      };
+
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+
+      const statusDiv = document.getElementById("syncStatus");
+      statusDiv.innerText = "⏳ 正在連線雲端...";
+
+      dbRef = firebase.database().ref("users/" + syncKey);
+
+      dbRef.once("value", (snapshot) => {
+        const cloudData = snapshot.val();
+        if (cloudData) {
+          if (confirm("☁️ 偵測到雲端有現成同步單字庫，是否將本機資料與雲端全面覆蓋同步？")) {
+            wordBank = cloudData.words || [];
+            wrongWords = cloudData.wrong || {};
+            quizHistory = cloudData.history || [];
+            localStorage.setItem("toeic_words", JSON.stringify(wordBank));
+            localStorage.setItem("toeic_wrong", JSON.stringify(wrongWords));
+            localStorage.setItem("toeic_history", JSON.stringify(quizHistory));
+            renderCategories();
+            renderWordTable();
+            renderNotebookTable();
+            renderHistoryList();
+            updateWrongCountBadge();
+          }
+        } else {
+          pushToCloud();
+        }
+
+        dbRef.on("value", (snap) => {
+          if (isSyncing) return;
+          const data = snap.val();
+          if (data) {
+            wordBank = data.words || [];
+            wrongWords = data.wrong || {};
+            quizHistory = data.history || [];
+            localStorage.setItem("toeic_words", JSON.stringify(wordBank));
+            localStorage.setItem("toeic_wrong", JSON.stringify(wrongWords));
+            localStorage.setItem("toeic_history", JSON.stringify(quizHistory));
+            renderCategories();
+            renderWordTable();
+            renderNotebookTable();
+            renderHistoryList();
+            updateWrongCountBadge();
+          }
+        });
+
+        statusDiv.className = "text-xs text-emerald-300 font-semibold pt-1";
+        statusDiv.innerText = "☁️ 雲端即時連線同步中 (金鑰生效)";
+        document.getElementById("syncHeaderBadge").innerText = "☁️ 雲端即時同步中";
+        localStorage.setItem("toeic_sync_key", syncKey);
+      });
+    }
+
+    function pushToCloud() {
+      if (!dbRef) return;
+      isSyncing = true;
+      dbRef.set({
+        words: wordBank,
+        wrong: wrongWords,
+        history: quizHistory
+      }).then(() => {
+        isSyncing = false;
+      }).catch(err => {
+        console.error(err);
+        isSyncing = false;
+      });
+    }
+
     function saveToLocalStorage() {
       localStorage.setItem("toeic_words", JSON.stringify(wordBank));
+      pushToCloud();
     }
 
     function saveWrongToLocalStorage() {
       localStorage.setItem("toeic_wrong", JSON.stringify(wrongWords));
       updateWrongCountBadge();
+      pushToCloud();
     }
 
     function saveHistoryToLocalStorage() {
       localStorage.setItem("toeic_history", JSON.stringify(quizHistory));
+      pushToCloud();
     }
 
     function updateWrongCountBadge() {
@@ -425,7 +537,6 @@
       quizCheckboxList.innerHTML = "";
       mainSelect.innerHTML = "";
 
-      // 1. 建立測驗區「全部單字」核取方塊
       const allDiv = document.createElement("label");
       allDiv.className = "flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer hover:bg-slate-50 p-1.5 rounded transition";
       allDiv.innerHTML = `
@@ -435,7 +546,6 @@
       quizCheckboxList.appendChild(allDiv);
 
       categories.forEach(cat => {
-        // 左側過濾標籤標籤
         const badgeWrapper = document.createElement("div");
         badgeWrapper.className = "inline-flex items-center rounded-full overflow-hidden transition " + 
           (currentCategoryFilter === cat ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100');
@@ -464,15 +574,12 @@
 
         container.appendChild(badgeWrapper);
 
-        // 填充下拉選單與測驗單元複選清單
         if (cat !== "all") {
-          // 手動新增下拉選單
           const optionMain = document.createElement("option");
           optionMain.value = cat;
           optionMain.innerText = cat;
           mainSelect.appendChild(optionMain);
 
-          // 測驗單元複選框
           const catDiv = document.createElement("label");
           catDiv.className = "flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:bg-slate-50 p-1.5 rounded transition ml-4";
           catDiv.innerHTML = `
@@ -493,14 +600,12 @@
       updateCategoryButtonText();
     }
 
-    // 控制下拉選單展開/收起
     function toggleQuizCategoryDropdown(event) {
       event.stopPropagation();
       const dropdown = document.getElementById("quizCategoryDropdown");
       dropdown.classList.toggle("hidden");
     }
 
-    // 測驗類別多選邏輯：當勾選「全部單字」，清空並取消選取其餘自訂選項
     function handleQuizAllCategoryToggle(allCheckbox) {
       const items = document.getElementsByName("quizCatCheckbox");
       if (allCheckbox.checked) {
@@ -509,7 +614,6 @@
       updateCategoryButtonText();
     }
 
-    // 測驗類別多選邏輯：當勾選了任何一個特定自訂類別，取消「全部單字」的勾選
     function handleQuizCategoryItemToggle() {
       const allCheckbox = document.getElementById("check-cat-all");
       const items = document.getElementsByName("quizCatCheckbox");
@@ -526,7 +630,6 @@
       updateCategoryButtonText();
     }
 
-    // 動態更新下拉選單按鈕的文字顯示
     function updateCategoryButtonText() {
       const allCheckbox = document.getElementById("check-cat-all");
       const items = document.getElementsByName("quizCatCheckbox");
@@ -724,7 +827,6 @@
     }
 
     function startQuiz() {
-      // 1. 取得所有勾選的分類
       const allCheckbox = document.getElementById("check-cat-all");
       const items = document.getElementsByName("quizCatCheckbox");
       let selectedCategories = [];
@@ -735,13 +837,11 @@
         });
       }
 
-      // 檢查是否沒有勾選類別
       if (!allCheckbox.checked && selectedCategories.length === 0) {
         alert("請至少勾選一個測驗單元分類！");
         return;
       }
 
-      // 過濾單字
       let filtered = [];
       if (allCheckbox.checked) {
         filtered = wordBank;
@@ -754,10 +854,8 @@
         return;
       }
 
-      // 洗牌
       let shuffled = [...filtered].sort(() => Math.random() - 0.5);
 
-      // 決定測驗題數
       const isAll = document.getElementById("quizAllCheckbox").checked;
       let limit = shuffled.length;
       if (!isAll) {
@@ -770,7 +868,7 @@
       currentQuizList = shuffled.slice(0, limit);
       currentQuizIndex = 0;
       isTransitioning = false;
-      sessionResults = []; // 重置本次測驗結果紀錄
+      sessionResults = [];
       nextQuestion();
     }
 
@@ -784,7 +882,7 @@
     function nextQuestion() {
       isTransitioning = false;
       if(currentQuizIndex >= currentQuizList.length) {
-        finishAndSaveQuiz(); // 測驗結束，儲存並展示詳細紀錄結果報告
+        finishAndSaveQuiz();
         return;
       }
 
@@ -821,10 +919,8 @@
             </div>
           </div>
         `;
-        // 英翻中「不自動播放發音」，需手動點擊
 
       } else if (mode === "audioToEng") {
-        // 聽音選單字模式：答案是英文字
         currentCorrectAnswer = qObj.word;
         let distractors = wordBank
           .filter(w => w.word !== currentCorrectAnswer)
@@ -850,7 +946,6 @@
             </div>
           </div>
         `;
-        // 【聽音選單字】「自動播放發音」
         speak(qObj.word);
 
       } else if (mode === "chiToEng") {
@@ -869,7 +964,6 @@
             </div>
           </div>
         `;
-        // 中翻英「不自動播放發音」
         document.getElementById("spellInput").focus();
 
       } else if (mode === "spellWithAudio") {
@@ -890,7 +984,6 @@
             </div>
           </div>
         `;
-        // 【聽音默寫】「自動播放發音」
         speak(qObj.word);
         document.getElementById("audioSpellInput").focus();
       }
@@ -904,35 +997,30 @@
       }
     }
 
-    // 選擇題提交 (支援英翻中與聽音選單字)
     function submitMultipleChoice(buttonElem, selected, modeType) {
       if (isTransitioning) return;
       const qObj = currentQuizList[currentQuizIndex];
 
       if (selected === currentCorrectAnswer) {
         isTransitioning = true;
-        // 答對記錄 (絕對不呼叫 markAsWrong)
         sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: true });
 
-        // 答對效果
         buttonElem.className = "bg-emerald-50 border-emerald-300 text-emerald-700 p-3 rounded-xl text-sm font-semibold transition text-left focus:outline-none";
         if(modeType === 'audioToEng') {
           buttonElem.classList.add("text-center", "text-md", "font-bold");
-          speak(qObj.word); // 僅在聽音題型答對時播放音效/讀音
+          speak(qObj.word);
         }
         
         setTimeout(() => {
           proceedNext();
         }, 800); 
       } else {
-        // 答錯記錄 -> 僅在答錯時存入錯題本
         sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: false, userAns: selected });
         markAsWrong(qObj);
         showWrongFeedback(`答錯囉！正確答案是：<br><span class="text-xl font-extrabold text-slate-800">${qObj.word}</span> = <span class="text-md font-semibold text-slate-600">${qObj.translation}</span>`);
       }
     }
 
-    // 拼寫提交
     function submitSpelling() {
       if (isTransitioning) return;
       const inputField = document.getElementById("spellInput");
@@ -942,7 +1030,6 @@
 
       if(input === qObj.word.toLowerCase()) {
         isTransitioning = true;
-        // 答對記錄 (絕對不呼叫 markAsWrong)
         sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: true });
 
         inputField.className = "flex-grow p-3 border-2 border-emerald-500 bg-emerald-50 text-emerald-800 rounded-xl focus:outline-none font-semibold";
@@ -954,14 +1041,12 @@
           proceedNext();
         }, 800);
       } else {
-        // 答錯記錄 -> 僅在答錯時存入錯題本
         sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: false, userAns: input });
         markAsWrong(qObj);
         showWrongFeedback(`拼寫錯誤！<br>正確應為：<span class="text-2xl font-black text-slate-800 tracking-wider">${qObj.word}</span> (${qObj.translation})`);
       }
     }
 
-    // 聽音默寫提交
     function submitAudioSpelling() {
       if (isTransitioning) return;
       const inputField = document.getElementById("audioSpellInput");
@@ -971,7 +1056,6 @@
 
       if(input === qObj.word.toLowerCase()) {
         isTransitioning = true;
-        // 答對記錄 (絕對不呼叫 markAsWrong)
         sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: true });
 
         inputField.className = "flex-grow p-3 border-2 border-emerald-500 bg-emerald-50 text-emerald-800 rounded-xl focus:outline-none font-semibold";
@@ -983,14 +1067,12 @@
           proceedNext();
         }, 800);
       } else {
-        // 答錯記錄 -> 僅在答錯時存入錯題本
         sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: false, userAns: input });
         markAsWrong(qObj);
         showWrongFeedback(`默寫有誤！<br>正確應為：<span class="text-2xl font-black text-slate-800 tracking-wider">${qObj.word}</span> (${qObj.translation})`);
       }
     }
 
-    // 將單字標記為答錯，寫入錯題本
     function markAsWrong(qObj) {
       if(wrongWords[qObj.word]) {
         wrongWords[qObj.word].count += 1;
@@ -1022,7 +1104,6 @@
       nextQuestion();
     }
 
-    // 測驗結束：儲存紀錄並渲染結果
     function finishAndSaveQuiz() {
       const correctCount = sessionResults.filter(r => r.isCorrect).length;
       const total = sessionResults.length;
@@ -1137,7 +1218,6 @@
         const catBadges = record.categories.map(c => `<span class="bg-indigo-50 text-indigo-600 text-[10px] px-1.5 py-0.5 rounded font-bold">${c}</span>`).join(" ");
 
         div.innerHTML = `
-          <!-- 卡片頂部概覽 -->
           <div onclick="toggleHistoryDetails('${record.id}')" class="p-4 flex justify-between items-center cursor-pointer bg-slate-50/50 hover:bg-slate-50 transition">
             <div class="space-y-1 pr-2">
               <div class="flex items-center gap-2">
@@ -1159,7 +1239,6 @@
             </div>
           </div>
 
-          <!-- 卡片展開明細內容 -->
           <div id="details-${record.id}" class="hidden border-t border-slate-100 p-4 bg-white space-y-2">
             <p class="text-xs font-bold text-slate-400 mb-2">📜 題目對錯明細：</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
