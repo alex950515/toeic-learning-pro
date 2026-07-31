@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TOEIC 多益單字學習神器</title>
+  <title>TOEIC 多益單字學習神器 (極速測驗與紀錄版)</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome Icons -->
@@ -17,52 +17,53 @@
       <h1 class="text-2xl font-bold flex items-center gap-2">
         <i class="fa-solid fa-graduation-cap"></i> TOEIC 多益單字學習神器
       </h1>
-      <span class="text-sm bg-indigo-500 px-3 py-1 rounded-full">離線 JSON 導出匯入 ‧ 筆記本收藏 ‧ 歷程紀錄</span>
+      <span class="text-sm bg-indigo-500 px-3 py-1 rounded-full">離線儲存 ‧ 下拉多選 ‧ 聽音自動發音 ‧ 歷程紀錄</span>
     </div>
   </header>
 
   <main class="max-w-6xl w-full mx-auto p-4 md:p-6 flex-grow grid grid-cols-1 md:grid-cols-3 gap-6">
     
-    <!-- 左側面板：單字庫管理 & 備份 -->
+    <!-- 左側面板：單字庫管理 & 上傳 -->
     <div class="md:col-span-1 space-y-6">
       
-      <!-- JSON 匯入與導出 (離線使用) -->
-      <div class="bg-indigo-900 text-white p-5 rounded-2xl shadow-sm border border-indigo-800 space-y-3">
-        <h2 class="text-lg font-bold flex items-center gap-2 text-indigo-200">
-          <i class="fa-solid fa-file-export"></i> 離線 JSON 資料備份/還原
+      <!-- 數據管理 -->
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+        <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-indigo-600">
+          <i class="fa-solid fa-file-import"></i> 導入多益單字 TXT
         </h2>
-        <p class="text-xs text-indigo-300">導出完整的單字庫、收藏筆記與歷史紀錄為 JSON 檔，方便跨裝置或離線使用。</p>
         
-        <div class="grid grid-cols-2 gap-2 pt-1">
-          <button onclick="exportJSON()" class="bg-indigo-500 hover:bg-indigo-600 text-white py-2 px-3 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1">
-            <i class="fa-solid fa-download"></i> 導出 JSON
-          </button>
+        <!-- TXT 檔案上傳區 -->
+        <div class="space-y-3 mb-4 pb-4 border-b border-slate-100">
+          <div class="flex justify-between items-center">
+            <span class="text-sm font-semibold text-slate-500">上傳 TXT（檔名即為分類）</span>
+            <button onclick="showTxtHelp()" class="text-xs text-indigo-600 underline">格式與分類說明</button>
+          </div>
           
-          <label class="bg-indigo-700 hover:bg-indigo-600 text-white py-2 px-3 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1 cursor-pointer">
-            <i class="fa-solid fa-upload"></i> 匯入 JSON
-            <input type="file" id="jsonFileInput" accept=".json" class="hidden" onchange="importJSON(event)">
+          <label class="w-full flex flex-col items-center px-4 py-5 bg-slate-50 text-slate-500 rounded-xl border-2 border-dashed border-slate-200 cursor-pointer hover:bg-slate-100 hover:border-indigo-300 transition">
+            <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-400 mb-2"></i>
+            <span class="text-xs font-semibold text-center">點擊選擇或拖曳 TXT 至此</span>
+            <input type="file" id="txtFileInput" accept=".txt" class="hidden" onchange="handleFileSelect(event)">
           </label>
+          <div id="fileInfo" class="text-xs text-emerald-600 font-semibold p-2 bg-emerald-50 rounded-lg hidden mt-2"></div>
         </div>
-      </div>
 
-      <!-- 手動新增單字 -->
-      <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-3">
-        <h2 class="text-lg font-bold flex items-center gap-2 text-indigo-600">
-          <i class="fa-solid fa-plus"></i> 個別手動新增單字
-        </h2>
-        <input id="wordInput" type="text" placeholder="英文單字 (如: hire)" class="w-full p-2 text-sm border rounded-lg focus:outline-indigo-500">
-        <input id="translationInput" type="text" placeholder="中文翻譯 (如: v. 雇用)" class="w-full p-2 text-sm border rounded-lg focus:outline-indigo-500">
-        <div class="flex gap-2">
-          <select id="categorySelect" class="flex-grow p-2 text-sm border rounded-lg focus:outline-indigo-500">
-            <option value="核心單字">核心單字</option>
-          </select>
-          <button onclick="createNewCategory()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 rounded-lg">
-            + 新增分類
+        <!-- 手動快速新增 -->
+        <div class="space-y-3">
+          <h3 class="text-sm font-semibold text-slate-500">個別手動新增</h3>
+          <input id="wordInput" type="text" placeholder="英文單字 (如: hire)" class="w-full p-2 text-sm border rounded-lg focus:outline-indigo-500">
+          <input id="translationInput" type="text" placeholder="中文翻譯 (如: v. 雇用)" class="w-full p-2 text-sm border rounded-lg focus:outline-indigo-500">
+          <div class="flex gap-2">
+            <select id="categorySelect" class="flex-grow p-2 text-sm border rounded-lg focus:outline-indigo-500">
+              <option value="核心單字">核心單字</option>
+            </select>
+            <button onclick="createNewCategory()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 rounded-lg">
+              + 新增分類
+            </button>
+          </div>
+          <button onclick="addSingleWord()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-sm font-semibold transition">
+            新增至單字庫
           </button>
         </div>
-        <button onclick="addSingleWord()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-sm font-semibold transition">
-          新增至單字庫
-        </button>
       </div>
 
       <!-- 分類列表 -->
@@ -77,7 +78,7 @@
 
     </div>
 
-    <!-- 右側面板：單字瀏覽 & 測驗區 & 筆記本 & 紀錄 -->
+    <!-- 右側面板：單字瀏覽 & 測驗區 & 紀錄 -->
     <div class="md:col-span-2 space-y-6">
       
       <!-- 功能導航列 -->
@@ -89,7 +90,7 @@
           <i class="fa-solid fa-circle-question mr-1"></i> 單字測驗
         </button>
         <button id="nav-notebook" onclick="switchTab('notebook')" class="flex-1 min-w-[80px] py-2 rounded-lg text-xs md:text-sm font-bold text-slate-600 hover:bg-slate-50 transition">
-          <i class="fa-solid fa-book-bookmark mr-1"></i> 筆記本 (<span id="wrongCount">0</span>)
+          <i class="fa-solid fa-book-bookmark mr-1"></i> 錯題本 (<span id="wrongCount">0</span>)
         </button>
         <button id="nav-history" onclick="switchTab('history')" class="flex-1 min-w-[80px] py-2 rounded-lg text-xs md:text-sm font-bold text-slate-600 hover:bg-slate-50 transition">
           <i class="fa-solid fa-clock-rotate-left mr-1"></i> 測驗紀錄
@@ -107,7 +108,6 @@
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="border-b border-slate-100 text-slate-400 text-sm">
-                <th class="py-3 px-4">收藏</th>
                 <th class="py-3 px-4">單字 (點擊發音)</th>
                 <th class="py-3 px-4">中文翻譯（含詞性）</th>
                 <th class="py-3 px-4">分類</th>
@@ -134,11 +134,13 @@
                 <i class="fa-solid fa-list-check"></i> 選擇測驗單元 (可複選)
               </label>
               
+              <!-- 下拉選單觸發按鈕 -->
               <button type="button" onclick="toggleQuizCategoryDropdown(event)" class="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm text-left flex justify-between items-center focus:outline-indigo-500 transition shadow-sm">
                 <span id="quizCategoryDropdownBtnText" class="truncate text-slate-600 font-semibold">全部單字 (包含所有類別)</span>
                 <i class="fa-solid fa-chevron-down text-slate-400 text-xs"></i>
               </button>
 
+              <!-- 下拉式選單選框內容 -->
               <div id="quizCategoryDropdown" class="hidden absolute left-0 right-0 z-20 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto p-3 space-y-1.5">
                 <!-- 動態載入複選按鈕 -->
               </div>
@@ -184,20 +186,20 @@
         </div>
       </div>
 
-      <!-- Tab 3: 筆記本 (原錯題本) -->
+      <!-- Tab 3: 錯誤筆記本 -->
       <div id="tab-content-notebook" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4 hidden">
         <div class="flex justify-between items-center">
-          <h2 class="text-xl font-bold text-amber-600"><i class="fa-solid fa-book-bookmark"></i> 筆記本 (加強記憶與收藏區)</h2>
+          <h2 class="text-xl font-bold text-red-600"><i class="fa-solid fa-circle-exclamation"></i> 錯題本 (加強記憶區)</h2>
           <button onclick="clearWrongNotebook()" class="text-xs text-slate-400 hover:text-red-500 transition">清空筆記本</button>
         </div>
-        <p class="text-sm text-slate-500">包含手動收藏與測驗中答錯自動記錄的單字。</p>
+        <p class="text-sm text-slate-500">在測驗中答錯的單字會自動收集在此。答對的題目不會出現在這。</p>
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="border-b border-slate-100 text-slate-400 text-sm">
                 <th class="py-3 px-4">單字</th>
                 <th class="py-3 px-4">翻譯</th>
-                <th class="py-3 px-4">答錯/收藏次數</th>
+                <th class="py-3 px-4">答錯次數</th>
                 <th class="py-3 px-4 text-right">操作</th>
               </tr>
             </thead>
@@ -241,7 +243,7 @@
   </main>
 
   <footer class="bg-slate-100 border-t border-slate-200 text-center py-4 text-xs text-slate-400">
-    💡 提示：本網頁所有資料皆儲存在您的本地瀏覽器快取 (Local Storage) 中，可隨時導出 JSON 進行離線備份。
+    💡 提示：本網頁資料會自動儲存在您的本地瀏覽器快取 (Local Storage) 中，下次使用時不需再次上傳。
   </footer>
 
   <!-- JS 邏輯區 -->
@@ -254,6 +256,8 @@
     let currentQuizIndex = 0;
     let currentCorrectAnswer = "";
     let isTransitioning = false; 
+
+    // 用來記錄當前這一次測驗所有做過題目的對錯紀錄
     let sessionResults = []; 
 
     window.onload = function() {
@@ -308,60 +312,6 @@
       document.getElementById("wrongCount").innerText = Object.keys(wrongWords).length;
     }
 
-    // ================== JSON 匯出 / 匯入邏輯 (離線備份) ==================
-    function exportJSON() {
-      const dataObj = {
-        words: wordBank,
-        wrong: wrongWords,
-        history: quizHistory,
-        exportDate: new Date().toISOString()
-      };
-
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataObj, null, 2));
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `TOEIC_Words_Backup_${new Date().toISOString().slice(0,10)}.json`);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-    }
-
-    function importJSON(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          const importedData = JSON.parse(e.target.result);
-          if (importedData.words || importedData.wrong || importedData.history) {
-            if (confirm("是否確定匯入此 JSON 備份檔並覆蓋目前的資料？")) {
-              wordBank = importedData.words || [];
-              wrongWords = importedData.wrong || {};
-              quizHistory = importedData.history || [];
-
-              saveToLocalStorage();
-              saveWrongToLocalStorage();
-              saveHistoryToLocalStorage();
-
-              renderCategories();
-              renderWordTable();
-              renderNotebookTable();
-              renderHistoryList();
-
-              alert("🎉 JSON 資料順利匯入成功！");
-            }
-          } else {
-            alert("⚠️ 格式不符：無法辨識的 JSON 檔案內容。");
-          }
-        } catch (err) {
-          alert("❌ 讀取失敗，請確認檔案是否為有效的 JSON 格式！");
-        }
-      };
-      reader.readAsText(file, 'UTF-8');
-      event.target.value = ""; // 重置 input 讓重複匯入同檔可被觸發
-    }
-
     // TTS 語音朗讀
     function speak(text) {
       if ('speechSynthesis' in window) {
@@ -371,6 +321,97 @@
         utterance.rate = 0.85; 
         window.speechSynthesis.speak(utterance);
       }
+    }
+
+    // ================== 檔案上傳與檔名分類處理 ==================
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const categoryName = file.name.replace(/\.[^/.]+$/, "").trim();
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const content = e.target.result;
+        parseTxtContent(content, categoryName);
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
+
+    function parseTxtContent(text, categoryName) {
+      const lines = text.split(/\r?\n/);
+      let addedCount = 0;
+      let updatedCount = 0;
+
+      addNewCategoryToSelect(categoryName);
+
+      lines.forEach(line => {
+        let trimmed = line.trim();
+        if (!trimmed) return;
+
+        let currentCategory = categoryName;
+        if (trimmed.startsWith("#")) {
+          const catMatch = trimmed.match(/#\s*(?:分類|category)\s*:\s*(.+)/i);
+          if (catMatch && catMatch[1]) {
+            currentCategory = catMatch[1].trim();
+            addNewCategoryToSelect(currentCategory);
+          }
+          return;
+        }
+
+        let engWord = "";
+        let chiTrans = "";
+
+        if (trimmed.includes("=")) {
+          const parts = trimmed.split("=");
+          engWord = parts[0].trim().toLowerCase();
+          chiTrans = parts.slice(1).join("=").trim();
+        } else if (trimmed.includes(",")) {
+          const parts = trimmed.split(",");
+          engWord = parts[0].trim().toLowerCase();
+          chiTrans = parts.slice(1).join(",").trim();
+        } else {
+          const spaceIndex = trimmed.indexOf(" ");
+          if (spaceIndex > -1) {
+            engWord = trimmed.substring(0, spaceIndex).trim().toLowerCase();
+            chiTrans = trimmed.substring(spaceIndex).trim();
+          }
+        }
+
+        engWord = engWord.replace(/[^a-zA-Z\s-]/g, "");
+
+        if (engWord && chiTrans) {
+          const existingIndex = wordBank.findIndex(w => w.word === engWord);
+          if (existingIndex > -1) {
+            wordBank[existingIndex].translation = chiTrans;
+            wordBank[existingIndex].category = currentCategory;
+            updatedCount++;
+          } else {
+            wordBank.push({ word: engWord, translation: chiTrans, category: currentCategory });
+            addedCount++;
+          }
+        }
+      });
+
+      saveToLocalStorage();
+      currentCategoryFilter = categoryName; 
+      renderCategories();
+      renderWordTable();
+
+      const infoDiv = document.getElementById("fileInfo");
+      infoDiv.innerHTML = `<i class="fa-solid fa-circle-check"></i> 成功導入！已建立新分類【<b>${categoryName}</b>】<br>新增 ${addedCount} 個單字，更新 ${updatedCount} 個。`;
+      infoDiv.classList.remove("hidden");
+    }
+
+    function showTxtHelp() {
+      alert(
+        "【檔名自動分類功能說明】\n\n" +
+        "1. 請將你的文字檔命名為你想分類的名字，例如：\n" +
+        "   「求職高頻詞.txt」、「辦公英文.txt」\n\n" +
+        "2. 上傳後，系統會自動在左側新增對應的「求職高頻詞」分類！\n\n" +
+        "3. 單字編寫格式：\n" +
+        "   resume n. 履歷表\n" +
+        "   opening n. 職缺，空缺"
+      );
     }
 
     // ================== 分類管理與渲染 ==================
@@ -384,6 +425,7 @@
       quizCheckboxList.innerHTML = "";
       mainSelect.innerHTML = "";
 
+      // 1. 建立測驗區「全部單字」核取方塊
       const allDiv = document.createElement("label");
       allDiv.className = "flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer hover:bg-slate-50 p-1.5 rounded transition";
       allDiv.innerHTML = `
@@ -393,6 +435,7 @@
       quizCheckboxList.appendChild(allDiv);
 
       categories.forEach(cat => {
+        // 左側過濾標籤標籤
         const badgeWrapper = document.createElement("div");
         badgeWrapper.className = "inline-flex items-center rounded-full overflow-hidden transition " + 
           (currentCategoryFilter === cat ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100');
@@ -421,12 +464,15 @@
 
         container.appendChild(badgeWrapper);
 
+        // 填充下拉選單與測驗單元複選清單
         if (cat !== "all") {
+          // 手動新增下拉選單
           const optionMain = document.createElement("option");
           optionMain.value = cat;
           optionMain.innerText = cat;
           mainSelect.appendChild(optionMain);
 
+          // 測驗單元複選框
           const catDiv = document.createElement("label");
           catDiv.className = "flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:bg-slate-50 p-1.5 rounded transition ml-4";
           catDiv.innerHTML = `
@@ -447,12 +493,14 @@
       updateCategoryButtonText();
     }
 
+    // 控制下拉選單展開/收起
     function toggleQuizCategoryDropdown(event) {
       event.stopPropagation();
       const dropdown = document.getElementById("quizCategoryDropdown");
       dropdown.classList.toggle("hidden");
     }
 
+    // 測驗類別多選邏輯：當勾選「全部單字」，清空並取消選取其餘自訂選項
     function handleQuizAllCategoryToggle(allCheckbox) {
       const items = document.getElementsByName("quizCatCheckbox");
       if (allCheckbox.checked) {
@@ -461,6 +509,7 @@
       updateCategoryButtonText();
     }
 
+    // 測驗類別多選邏輯：當勾選了任何一個特定自訂類別，取消「全部單字」的勾選
     function handleQuizCategoryItemToggle() {
       const allCheckbox = document.getElementById("check-cat-all");
       const items = document.getElementsByName("quizCatCheckbox");
@@ -477,6 +526,7 @@
       updateCategoryButtonText();
     }
 
+    // 動態更新下拉選單按鈕的文字顯示
     function updateCategoryButtonText() {
       const allCheckbox = document.getElementById("check-cat-all");
       const items = document.getElementsByName("quizCatCheckbox");
@@ -513,6 +563,10 @@
 
         renderCategories();
         renderWordTable();
+
+        const infoDiv = document.getElementById("fileInfo");
+        infoDiv.innerHTML = `<i class="fa-solid fa-trash-can text-red-500"></i> 分類【<b>${catName}</b>】已成功刪除。`;
+        infoDiv.classList.remove("hidden");
       }
     }
 
@@ -536,20 +590,14 @@
       document.getElementById("currentGroupTitle").innerText = currentCategoryFilter === "all" ? "全部單字" : currentCategoryFilter;
 
       if(filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-400">目前此分類尚無單字。</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-slate-400">目前此分類尚無單字，請由左側上傳文檔或新增。</td></tr>`;
         return;
       }
 
       filtered.forEach((item) => {
-        const isFav = !!wrongWords[item.word];
         const tr = document.createElement("tr");
         tr.className = "border-b border-slate-50 hover:bg-slate-50 text-sm";
         tr.innerHTML = `
-          <td class="py-3 px-4">
-            <button onclick="toggleBookmark('${item.word}')" class="text-lg transition focus:outline-none">
-              <i class="${isFav ? 'fa-solid text-amber-400' : 'fa-regular text-slate-300'} fa-star hover:scale-110 transition-transform"></i>
-            </button>
-          </td>
           <td class="py-3 px-4 font-bold text-slate-700 flex items-center gap-2">
             <span class="cursor-pointer hover:text-indigo-600" onclick="speak('${item.word}')">${item.word}</span>
             <button onclick="speak('${item.word}')" class="text-indigo-400 hover:text-indigo-600">
@@ -567,20 +615,6 @@
         `;
         tbody.appendChild(tr);
       });
-    }
-
-    function toggleBookmark(targetWord) {
-      const found = wordBank.find(w => w.word === targetWord);
-      if (!found) return;
-
-      if (wrongWords[targetWord]) {
-        delete wrongWords[targetWord];
-      } else {
-        wrongWords[targetWord] = { translation: found.translation, count: 1 };
-      }
-      saveWrongToLocalStorage();
-      renderWordTable();
-      renderNotebookTable();
     }
 
     function addSingleWord() {
@@ -633,12 +667,9 @@
     function deleteWord(targetWord) {
       if(confirm(`確認要刪除單字 [ ${targetWord} ] 嗎？`)) {
         wordBank = wordBank.filter(w => w.word !== targetWord);
-        delete wrongWords[targetWord];
         saveToLocalStorage();
-        saveWrongToLocalStorage();
         renderCategories();
         renderWordTable();
-        renderNotebookTable();
       }
     }
 
@@ -693,6 +724,7 @@
     }
 
     function startQuiz() {
+      // 1. 取得所有勾選的分類
       const allCheckbox = document.getElementById("check-cat-all");
       const items = document.getElementsByName("quizCatCheckbox");
       let selectedCategories = [];
@@ -703,11 +735,13 @@
         });
       }
 
+      // 檢查是否沒有勾選類別
       if (!allCheckbox.checked && selectedCategories.length === 0) {
         alert("請至少勾選一個測驗單元分類！");
         return;
       }
 
+      // 過濾單字
       let filtered = [];
       if (allCheckbox.checked) {
         filtered = wordBank;
@@ -720,8 +754,10 @@
         return;
       }
 
+      // 洗牌
       let shuffled = [...filtered].sort(() => Math.random() - 0.5);
 
+      // 決定測驗題數
       const isAll = document.getElementById("quizAllCheckbox").checked;
       let limit = shuffled.length;
       if (!isAll) {
@@ -734,7 +770,7 @@
       currentQuizList = shuffled.slice(0, limit);
       currentQuizIndex = 0;
       isTransitioning = false;
-      sessionResults = [];
+      sessionResults = []; // 重置本次測驗結果紀錄
       nextQuestion();
     }
 
@@ -748,24 +784,16 @@
     function nextQuestion() {
       isTransitioning = false;
       if(currentQuizIndex >= currentQuizList.length) {
-        finishAndSaveQuiz();
+        finishAndSaveQuiz(); // 測驗結束，儲存並展示詳細紀錄結果報告
         return;
       }
 
       const qObj = currentQuizList[currentQuizIndex];
       const mode = document.getElementById("quizMode").value;
-      const isFav = !!wrongWords[qObj.word];
-
       document.getElementById("quizProgress").innerText = `進度: ${currentQuizIndex + 1} / ${currentQuizList.length}`;
 
       const card = document.getElementById("quizCard");
       card.innerHTML = "";
-
-      const favButtonHTML = `
-        <button onclick="toggleBookmarkInQuiz('${qObj.word}')" id="quizFavBtn" class="text-xl transition focus:outline-none" title="收藏至筆記本">
-          <i class="${isFav ? 'fa-solid text-amber-400' : 'fa-regular text-slate-300'} fa-star hover:scale-110 transition-transform"></i>
-        </button>
-      `;
 
       if (mode === "engToChi") {
         currentCorrectAnswer = qObj.translation;
@@ -778,15 +806,14 @@
 
         card.innerHTML = `
           <div class="space-y-6">
-            <div class="flex justify-center items-center gap-3">
-              ${favButtonHTML}
+            <div class="flex justify-center items-center gap-2">
               <span class="text-3xl font-extrabold text-slate-800 tracking-wide">${qObj.word}</span>
               <button onclick="speak('${qObj.word}')" class="text-indigo-500 text-xl hover:text-indigo-700">
                 <i class="fa-solid fa-volume-high"></i>
               </button>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-md mx-auto" id="optionGrid">
-              ${options.map((opt) => `
+              ${options.map((opt, i) => `
                 <button onclick="submitMultipleChoice(this, '${opt}', 'engToChi')" class="bg-white border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 p-3 rounded-xl text-sm font-semibold transition text-left focus:outline-none">
                   ${opt}
                 </button>
@@ -794,8 +821,10 @@
             </div>
           </div>
         `;
+        // 英翻中「不自動播放發音」，需手動點擊
 
       } else if (mode === "audioToEng") {
+        // 聽音選單字模式：答案是英文字
         currentCorrectAnswer = qObj.word;
         let distractors = wordBank
           .filter(w => w.word !== currentCorrectAnswer)
@@ -806,15 +835,14 @@
 
         card.innerHTML = `
           <div class="space-y-6">
-            <div class="space-y-2 relative">
-              <div class="absolute right-2 top-0">${favButtonHTML}</div>
+            <div class="space-y-2">
               <p class="text-sm text-slate-400">請聽發音選出正確單字 (已為您自動播放)</p>
               <button onclick="speak('${qObj.word}')" class="mx-auto w-16 h-16 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-2xl transition shadow-inner">
                 <i class="fa-solid fa-volume-high"></i>
               </button>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-md mx-auto" id="optionGrid">
-              ${options.map((opt) => `
+              ${options.map((opt, i) => `
                 <button onclick="submitMultipleChoice(this, '${opt}', 'audioToEng')" class="bg-white border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 p-3 rounded-xl text-md font-bold tracking-wide text-center transition focus:outline-none">
                   ${opt}
                 </button>
@@ -822,17 +850,15 @@
             </div>
           </div>
         `;
+        // 【聽音選單字】「自動播放發音」
         speak(qObj.word);
 
       } else if (mode === "chiToEng") {
         card.innerHTML = `
           <div class="space-y-6 max-w-md mx-auto">
-            <div class="flex justify-center items-center gap-2">
-              ${favButtonHTML}
-              <div>
-                <p class="text-sm text-slate-400 mb-1">請拼寫出對應的英文</p>
-                <span class="text-2xl font-bold text-slate-800">${qObj.translation}</span>
-              </div>
+            <div>
+              <p class="text-sm text-slate-400 mb-1">請拼寫出對應的英文</p>
+              <span class="text-2xl font-bold text-slate-800">${qObj.translation}</span>
             </div>
             <div class="flex flex-col gap-2">
               <div class="flex gap-2">
@@ -843,13 +869,13 @@
             </div>
           </div>
         `;
+        // 中翻英「不自動播放發音」
         document.getElementById("spellInput").focus();
 
       } else if (mode === "spellWithAudio") {
         card.innerHTML = `
           <div class="space-y-6 max-w-md mx-auto">
-            <div class="space-y-3 relative">
-              <div class="absolute right-0 top-0">${favButtonHTML}</div>
+            <div class="space-y-3">
               <p class="text-sm text-slate-400">聽發音默寫拼音 (已為您自動播放)：</p>
               <button onclick="speak('${qObj.word}')" class="mx-auto w-16 h-16 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-2xl transition shadow-inner">
                 <i class="fa-solid fa-volume-high"></i>
@@ -864,17 +890,9 @@
             </div>
           </div>
         `;
+        // 【聽音默寫】「自動播放發音」
         speak(qObj.word);
         document.getElementById("audioSpellInput").focus();
-      }
-    }
-
-    function toggleBookmarkInQuiz(targetWord) {
-      toggleBookmark(targetWord);
-      const btn = document.getElementById("quizFavBtn");
-      if (btn) {
-        const isFav = !!wrongWords[targetWord];
-        btn.innerHTML = `<i class="${isFav ? 'fa-solid text-amber-400' : 'fa-regular text-slate-300'} fa-star hover:scale-110 transition-transform"></i>`;
       }
     }
 
@@ -886,30 +904,35 @@
       }
     }
 
+    // 選擇題提交 (支援英翻中與聽音選單字)
     function submitMultipleChoice(buttonElem, selected, modeType) {
       if (isTransitioning) return;
       const qObj = currentQuizList[currentQuizIndex];
 
       if (selected === currentCorrectAnswer) {
         isTransitioning = true;
+        // 答對記錄 (絕對不呼叫 markAsWrong)
         sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: true });
 
+        // 答對效果
         buttonElem.className = "bg-emerald-50 border-emerald-300 text-emerald-700 p-3 rounded-xl text-sm font-semibold transition text-left focus:outline-none";
         if(modeType === 'audioToEng') {
           buttonElem.classList.add("text-center", "text-md", "font-bold");
-          speak(qObj.word);
+          speak(qObj.word); // 僅在聽音題型答對時播放音效/讀音
         }
         
         setTimeout(() => {
           proceedNext();
         }, 800); 
       } else {
+        // 答錯記錄 -> 僅在答錯時存入錯題本
         sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: false, userAns: selected });
         markAsWrong(qObj);
         showWrongFeedback(`答錯囉！正確答案是：<br><span class="text-xl font-extrabold text-slate-800">${qObj.word}</span> = <span class="text-md font-semibold text-slate-600">${qObj.translation}</span>`);
       }
     }
 
+    // 拼寫提交
     function submitSpelling() {
       if (isTransitioning) return;
       const inputField = document.getElementById("spellInput");
@@ -919,6 +942,7 @@
 
       if(input === qObj.word.toLowerCase()) {
         isTransitioning = true;
+        // 答對記錄 (絕對不呼叫 markAsWrong)
         sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: true });
 
         inputField.className = "flex-grow p-3 border-2 border-emerald-500 bg-emerald-50 text-emerald-800 rounded-xl focus:outline-none font-semibold";
@@ -930,12 +954,14 @@
           proceedNext();
         }, 800);
       } else {
+        // 答錯記錄 -> 僅在答錯時存入錯題本
         sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: false, userAns: input });
         markAsWrong(qObj);
         showWrongFeedback(`拼寫錯誤！<br>正確應為：<span class="text-2xl font-black text-slate-800 tracking-wider">${qObj.word}</span> (${qObj.translation})`);
       }
     }
 
+    // 聽音默寫提交
     function submitAudioSpelling() {
       if (isTransitioning) return;
       const inputField = document.getElementById("audioSpellInput");
@@ -945,6 +971,7 @@
 
       if(input === qObj.word.toLowerCase()) {
         isTransitioning = true;
+        // 答對記錄 (絕對不呼叫 markAsWrong)
         sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: true });
 
         inputField.className = "flex-grow p-3 border-2 border-emerald-500 bg-emerald-50 text-emerald-800 rounded-xl focus:outline-none font-semibold";
@@ -956,12 +983,14 @@
           proceedNext();
         }, 800);
       } else {
+        // 答錯記錄 -> 僅在答錯時存入錯題本
         sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: false, userAns: input });
         markAsWrong(qObj);
         showWrongFeedback(`默寫有誤！<br>正確應為：<span class="text-2xl font-black text-slate-800 tracking-wider">${qObj.word}</span> (${qObj.translation})`);
       }
     }
 
+    // 將單字標記為答錯，寫入錯題本
     function markAsWrong(qObj) {
       if(wrongWords[qObj.word]) {
         wrongWords[qObj.word].count += 1;
@@ -993,6 +1022,7 @@
       nextQuestion();
     }
 
+    // 測驗結束：儲存紀錄並渲染結果
     function finishAndSaveQuiz() {
       const correctCount = sessionResults.filter(r => r.isCorrect).length;
       const total = sessionResults.length;
@@ -1107,6 +1137,7 @@
         const catBadges = record.categories.map(c => `<span class="bg-indigo-50 text-indigo-600 text-[10px] px-1.5 py-0.5 rounded font-bold">${c}</span>`).join(" ");
 
         div.innerHTML = `
+          <!-- 卡片頂部概覽 -->
           <div onclick="toggleHistoryDetails('${record.id}')" class="p-4 flex justify-between items-center cursor-pointer bg-slate-50/50 hover:bg-slate-50 transition">
             <div class="space-y-1 pr-2">
               <div class="flex items-center gap-2">
@@ -1128,6 +1159,7 @@
             </div>
           </div>
 
+          <!-- 卡片展開明細內容 -->
           <div id="details-${record.id}" class="hidden border-t border-slate-100 p-4 bg-white space-y-2">
             <p class="text-xs font-bold text-slate-400 mb-2">📜 題目對錯明細：</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
@@ -1193,14 +1225,14 @@
       return `${year}-${month}-${day} ${hours}:${minutes}`;
     }
 
-    // ================== 筆記本 (原錯題本) 邏輯 ==================
+    // ================== 錯誤筆記本邏輯 ==================
     function renderNotebookTable() {
       const tbody = document.getElementById("notebookTableBody");
       tbody.innerHTML = "";
 
       const keys = Object.keys(wrongWords);
       if(keys.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-slate-400">筆記本目前尚無收藏或錯題。</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-slate-400">目前沒有錯題，太棒了！</td></tr>`;
         return;
       }
 
@@ -1209,14 +1241,14 @@
         const tr = document.createElement("tr");
         tr.className = "border-b border-slate-50 hover:bg-slate-50 text-sm";
         tr.innerHTML = `
-          <td class="py-3 px-4 font-bold text-amber-700 flex items-center gap-2">
+          <td class="py-3 px-4 font-bold text-red-700 flex items-center gap-2">
             <span class="cursor-pointer" onclick="speak('${word}')">${word}</span>
             <button onclick="speak('${word}')" class="text-slate-400 hover:text-indigo-600">
               <i class="fa-solid fa-volume-high text-xs"></i>
             </button>
           </td>
           <td class="py-3 px-4 text-slate-500">${item.translation}</td>
-          <td class="py-3 px-4"><span class="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full font-bold">${item.count} 次</span></td>
+          <td class="py-3 px-4"><span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-bold">${item.count} 次</span></td>
           <td class="py-3 px-4 text-right">
             <button onclick="removeFromNotebook('${word}')" class="text-xs text-indigo-600 hover:underline">移除</button>
           </td>
@@ -1228,15 +1260,13 @@
     function removeFromNotebook(word) {
       delete wrongWords[word];
       saveWrongToLocalStorage();
-      renderWordTable();
       renderNotebookTable();
     }
 
     function clearWrongNotebook() {
-      if(confirm("確定要清空所有的筆記本紀錄嗎？")) {
+      if(confirm("確定要清空所有的錯題紀錄嗎？")) {
         wrongWords = {};
         saveWrongToLocalStorage();
-        renderWordTable();
         renderNotebookTable();
       }
     }
