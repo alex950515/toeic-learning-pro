@@ -17,7 +17,10 @@
       <h1 class="text-2xl font-bold flex items-center gap-2">
         <i class="fa-solid fa-graduation-cap"></i> TOEIC 多益單字學習神器
       </h1>
-      <span class="text-sm bg-indigo-500 px-3 py-1 rounded-full">離線儲存 ‧ 下拉多選 ‧ 聽音自動發音 ‧ 歷程紀錄</span>
+      <span class="text-sm bg-indigo-500 px-3 py-1 rounded-full flex items-center gap-2">
+        <span id="syncStatus" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        Firebase 雲端同步中 ‧ 聽音自動發音 ‧ 歷程紀錄
+      </span>
     </div>
   </header>
 
@@ -243,73 +246,116 @@
   </main>
 
   <footer class="bg-slate-100 border-t border-slate-200 text-center py-4 text-xs text-slate-400">
-    💡 提示：本網頁資料會自動儲存在您的本地瀏覽器快取 (Local Storage) 中，下次使用時不需再次上傳。
+    💡 提示：本網頁已與 Firebase 雲端資料庫保持即時同步，並同步備份至 Local Storage。
   </footer>
 
-  <!-- JS 邏輯區 -->
-  <script>
-    let wordBank = [];
-    let wrongWords = {}; 
-    let quizHistory = []; 
-    let currentCategoryFilter = "all";
-    let currentQuizList = [];
-    let currentQuizIndex = 0;
-    let currentCorrectAnswer = "";
-    let isTransitioning = false; 
+  <!-- Firebase 模組載入與邏輯 integration -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    // 用來記錄當前這一次測驗所有做過題目的對錯紀錄
-    let sessionResults = []; 
+    // Firebase 設定
+    const firebaseConfig = {
+      databaseURL: "https://rong-toeic-app-default-rtdb.asia-southeast1.firebasedatabase.app/"
+    };
 
-    window.onload = function() {
-      if (localStorage.getItem("toeic_words")) {
-        wordBank = JSON.parse(localStorage.getItem("toeic_words"));
-      } else {
-        wordBank = [
-          { word: "resume", translation: "n. 履歷表", category: "求職與招募" },
-          { word: "opening", translation: "n. 職缺，空缺", category: "求職與招募" },
-          { word: "applicant", translation: "n. 應徵者，申請人", category: "求職與招募" }
-        ];
-        saveToLocalStorage();
-      }
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
 
-      if (localStorage.getItem("toeic_wrong")) {
-        wrongWords = JSON.parse(localStorage.getItem("toeic_wrong"));
-      }
+    // 狀態管理變數
+    window.wordBank = [];
+    window.wrongWords = {}; 
+    window.quizHistory = []; 
+    window.currentCategoryFilter = "all";
+    window.currentQuizList = [];
+    window.currentQuizIndex = 0;
+    window.currentCorrectAnswer = "";
+    window.isTransitioning = false; 
+    window.sessionResults = []; 
 
-      if (localStorage.getItem("toeic_history")) {
-        quizHistory = JSON.parse(localStorage.getItem("toeic_history"));
-      }
+    // Firebase 同步寫入
+    window.syncToFirebase = function() {
+      set(ref(db, 'toeic_data'), {
+        wordBank: window.wordBank || [],
+        wrongWords: window.wrongWords || {},
+        quizHistory: window.quizHistory || []
+      }).catch((err) => console.error("Firebase Sync Error:", err));
+    };
 
-      renderCategories();
-      renderWordTable();
-      renderNotebookTable();
-      renderHistoryList();
-      updateWrongCountBadge();
-
-      // 點擊空白處時關閉類別下拉選單
-      document.addEventListener("click", function(event) {
-        const dropdown = document.getElementById("quizCategoryDropdown");
-        if (!event.target.closest("#quizCategoryDropdown") && !event.target.closest("button[onclick='toggleQuizCategoryDropdown(event)']")) {
-          dropdown.classList.add("hidden");
+    // Firebase 即時資料監聽 (掛載至 window)
+    window.initFirebaseListener = function() {
+      const dbRef = ref(db, 'toeic_data');
+      onValue(dbRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          window.wordBank = data.wordBank || [];
+          window.wrongWords = data.wrongWords || {};
+          window.quizHistory = data.quizHistory || [];
+        } else {
+          // 初始化預設值
+          if (localStorage.getItem("toeic_words")) {
+            window.wordBank = JSON.parse(localStorage.getItem("toeic_words"));
+          } else {
+            window.wordBank = [
+              { word: "resume", translation: "n. 履歷表", category: "求職與招募" },
+              { word: "opening", translation: "n. 職缺，空缺", category: "求職與招募" },
+              { word: "applicant", translation: "n. 應徵者，申請人", category: "求職與招募" }
+            ];
+          }
+          window.wrongWords = JSON.parse(localStorage.getItem("toeic_wrong") || "{}");
+          window.quizHistory = JSON.parse(localStorage.getItem("toeic_history") || "[]");
+          window.syncToFirebase();
         }
+
+        // 保存到 LocalStorage 作為快取
+        localStorage.setItem("toeic_words", JSON.stringify(window.wordBank));
+        localStorage.setItem("toeic_wrong", JSON.stringify(window.wrongWords));
+        localStorage.setItem("toeic_history", JSON.stringify(window.quizHistory));
+
+        // 重新渲染畫面
+        renderCategories();
+        renderWordTable();
+        renderNotebookTable();
+        renderHistoryList();
+        updateWrongCountBadge();
       });
     };
 
+    // 頁面載入點
+    window.addEventListener("DOMContentLoaded", () => {
+      window.initFirebaseListener();
+
+      // 點擊空白處關閉選單
+      document.addEventListener("click", function(event) {
+        const dropdown = document.getElementById("quizCategoryDropdown");
+        if (dropdown && !event.target.closest("#quizCategoryDropdown") && !event.target.closest("button[onclick='toggleQuizCategoryDropdown(event)']")) {
+          dropdown.classList.add("hidden");
+        }
+      });
+    });
+  </script>
+
+  <!-- 功能函數 UI 與邏輯處理 -->
+  <script>
     function saveToLocalStorage() {
-      localStorage.setItem("toeic_words", JSON.stringify(wordBank));
+      localStorage.setItem("toeic_words", JSON.stringify(window.wordBank));
+      if (typeof window.syncToFirebase === "function") window.syncToFirebase();
     }
 
     function saveWrongToLocalStorage() {
-      localStorage.setItem("toeic_wrong", JSON.stringify(wrongWords));
+      localStorage.setItem("toeic_wrong", JSON.stringify(window.wrongWords));
       updateWrongCountBadge();
+      if (typeof window.syncToFirebase === "function") window.syncToFirebase();
     }
 
     function saveHistoryToLocalStorage() {
-      localStorage.setItem("toeic_history", JSON.stringify(quizHistory));
+      localStorage.setItem("toeic_history", JSON.stringify(window.quizHistory));
+      if (typeof window.syncToFirebase === "function") window.syncToFirebase();
     }
 
     function updateWrongCountBadge() {
-      document.getElementById("wrongCount").innerText = Object.keys(wrongWords).length;
+      const badge = document.getElementById("wrongCount");
+      if (badge) badge.innerText = Object.keys(window.wrongWords || {}).length;
     }
 
     // TTS 語音朗讀
@@ -380,20 +426,20 @@
         engWord = engWord.replace(/[^a-zA-Z\s-]/g, "");
 
         if (engWord && chiTrans) {
-          const existingIndex = wordBank.findIndex(w => w.word === engWord);
+          const existingIndex = window.wordBank.findIndex(w => w.word === engWord);
           if (existingIndex > -1) {
-            wordBank[existingIndex].translation = chiTrans;
-            wordBank[existingIndex].category = currentCategory;
+            window.wordBank[existingIndex].translation = chiTrans;
+            window.wordBank[existingIndex].category = currentCategory;
             updatedCount++;
           } else {
-            wordBank.push({ word: engWord, translation: chiTrans, category: currentCategory });
+            window.wordBank.push({ word: engWord, translation: chiTrans, category: currentCategory });
             addedCount++;
           }
         }
       });
 
       saveToLocalStorage();
-      currentCategoryFilter = categoryName; 
+      window.currentCategoryFilter = categoryName; 
       renderCategories();
       renderWordTable();
 
@@ -416,16 +462,17 @@
 
     // ================== 分類管理與渲染 ==================
     function renderCategories() {
-      const categories = ["all", ...new Set(wordBank.map(item => item.category))];
+      const categories = ["all", ...new Set((window.wordBank || []).map(item => item.category))];
       const container = document.getElementById("categoryBadgeContainer");
       const quizCheckboxList = document.getElementById("quizCategoryDropdown");
       const mainSelect = document.getElementById("categorySelect");
       
+      if(!container || !quizCheckboxList || !mainSelect) return;
+
       container.innerHTML = "";
       quizCheckboxList.innerHTML = "";
       mainSelect.innerHTML = "";
 
-      // 1. 建立測驗區「全部單字」核取方塊
       const allDiv = document.createElement("label");
       allDiv.className = "flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer hover:bg-slate-50 p-1.5 rounded transition";
       allDiv.innerHTML = `
@@ -435,16 +482,15 @@
       quizCheckboxList.appendChild(allDiv);
 
       categories.forEach(cat => {
-        // 左側過濾標籤標籤
         const badgeWrapper = document.createElement("div");
         badgeWrapper.className = "inline-flex items-center rounded-full overflow-hidden transition " + 
-          (currentCategoryFilter === cat ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100');
+          (window.currentCategoryFilter === cat ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100');
 
         const badgeBtn = document.createElement("button");
         badgeBtn.className = "px-3 py-1 text-xs font-bold focus:outline-none";
         badgeBtn.innerText = cat === "all" ? "全部單字" : cat;
         badgeBtn.onclick = () => {
-          currentCategoryFilter = cat;
+          window.currentCategoryFilter = cat;
           renderCategories();
           renderWordTable();
         };
@@ -464,15 +510,12 @@
 
         container.appendChild(badgeWrapper);
 
-        // 填充下拉選單與測驗單元複選清單
         if (cat !== "all") {
-          // 手動新增下拉選單
           const optionMain = document.createElement("option");
           optionMain.value = cat;
           optionMain.innerText = cat;
           mainSelect.appendChild(optionMain);
 
-          // 測驗單元複選框
           const catDiv = document.createElement("label");
           catDiv.className = "flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:bg-slate-50 p-1.5 rounded transition ml-4";
           catDiv.innerHTML = `
@@ -493,14 +536,12 @@
       updateCategoryButtonText();
     }
 
-    // 控制下拉選單展開/收起
     function toggleQuizCategoryDropdown(event) {
       event.stopPropagation();
       const dropdown = document.getElementById("quizCategoryDropdown");
       dropdown.classList.toggle("hidden");
     }
 
-    // 測驗類別多選邏輯：當勾選「全部單字」，清空並取消選取其餘自訂選項
     function handleQuizAllCategoryToggle(allCheckbox) {
       const items = document.getElementsByName("quizCatCheckbox");
       if (allCheckbox.checked) {
@@ -509,7 +550,6 @@
       updateCategoryButtonText();
     }
 
-    // 測驗類別多選邏輯：當勾選了任何一個特定自訂類別，取消「全部單字」的勾選
     function handleQuizCategoryItemToggle() {
       const allCheckbox = document.getElementById("check-cat-all");
       const items = document.getElementsByName("quizCatCheckbox");
@@ -526,11 +566,12 @@
       updateCategoryButtonText();
     }
 
-    // 動態更新下拉選單按鈕的文字顯示
     function updateCategoryButtonText() {
       const allCheckbox = document.getElementById("check-cat-all");
       const items = document.getElementsByName("quizCatCheckbox");
       const btnText = document.getElementById("quizCategoryDropdownBtnText");
+
+      if (!btnText) return;
 
       if (allCheckbox && allCheckbox.checked) {
         btnText.innerText = "全部單字 (包含所有類別)";
@@ -551,14 +592,14 @@
     }
 
     function deleteWholeCategory(catName) {
-      const confirmDelete = confirm(`⚠️ 警告！\n\n您確定要刪除整個【 ${catName} 】分類嗎？\n這將會一併刪除該分類下的所有單字（共 ${wordBank.filter(w => w.category === catName).length} 個單字），此操作無法復原！`);
+      const confirmDelete = confirm(`⚠️ 警告！\n\n您確定要刪除整個【 ${catName} 】分類嗎？\n這將會一併刪除該分類下的所有單字（共 ${window.wordBank.filter(w => w.category === catName).length} 個單字），此操作無法復原！`);
       
       if (confirmDelete) {
-        wordBank = wordBank.filter(w => w.category !== catName);
+        window.wordBank = window.wordBank.filter(w => w.category !== catName);
         saveToLocalStorage();
 
-        if (currentCategoryFilter === catName) {
-          currentCategoryFilter = "all";
+        if (window.currentCategoryFilter === catName) {
+          window.currentCategoryFilter = "all";
         }
 
         renderCategories();
@@ -572,6 +613,7 @@
 
     function addNewCategoryToSelect(catName) {
       const select = document.getElementById("categorySelect");
+      if(!select) return;
       const currentOptions = Array.from(select.options).map(opt => opt.value);
       if (!currentOptions.includes(catName)) {
         const opt = document.createElement("option");
@@ -584,10 +626,11 @@
     // ================== 表格與單字管理 ==================
     function renderWordTable() {
       const tbody = document.getElementById("wordTableBody");
+      if (!tbody) return;
       tbody.innerHTML = "";
 
-      const filtered = currentCategoryFilter === "all" ? wordBank : wordBank.filter(w => w.category === currentCategoryFilter);
-      document.getElementById("currentGroupTitle").innerText = currentCategoryFilter === "all" ? "全部單字" : currentCategoryFilter;
+      const filtered = window.currentCategoryFilter === "all" ? window.wordBank : window.wordBank.filter(w => w.category === window.currentCategoryFilter);
+      document.getElementById("currentGroupTitle").innerText = window.currentCategoryFilter === "all" ? "全部單字" : window.currentCategoryFilter;
 
       if(filtered.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-slate-400">目前此分類尚無單字，請由左側上傳文檔或新增。</td></tr>`;
@@ -627,11 +670,11 @@
         return;
       }
 
-      const existingIndex = wordBank.findIndex(w => w.word === word);
+      const existingIndex = window.wordBank.findIndex(w => w.word === word);
       if(existingIndex > -1) {
-        wordBank[existingIndex] = { word, translation, category };
+        window.wordBank[existingIndex] = { word, translation, category };
       } else {
-        wordBank.push({ word, translation, category });
+        window.wordBank.push({ word, translation, category });
       }
 
       saveToLocalStorage();
@@ -643,17 +686,17 @@
     }
 
     function editWord(targetWord) {
-      const index = wordBank.findIndex(w => w.word === targetWord);
+      const index = window.wordBank.findIndex(w => w.word === targetWord);
       if(index === -1) return;
 
-      const current = wordBank[index];
+      const current = window.wordBank[index];
       const newWord = prompt("修改英文單字:", current.word);
       if (newWord === null) return; 
 
       const newTrans = prompt("修改中文翻譯:", current.translation);
       if (newTrans === null) return;
 
-      wordBank[index] = {
+      window.wordBank[index] = {
         word: newWord.trim().toLowerCase(),
         translation: newTrans.trim(),
         category: current.category
@@ -666,7 +709,7 @@
 
     function deleteWord(targetWord) {
       if(confirm(`確認要刪除單字 [ ${targetWord} ] 嗎？`)) {
-        wordBank = wordBank.filter(w => w.word !== targetWord);
+        window.wordBank = window.wordBank.filter(w => w.word !== targetWord);
         saveToLocalStorage();
         renderCategories();
         renderWordTable();
@@ -682,9 +725,9 @@
         const select = document.getElementById("categorySelect");
         select.value = formattedCatName;
         
-        wordBank.push({ word: "placeholder_temp", translation: "暫存預留單字", category: formattedCatName });
+        window.wordBank.push({ word: "placeholder_temp", translation: "暫存預留單字", category: formattedCatName });
         saveToLocalStorage();
-        wordBank = wordBank.filter(w => w.word !== "placeholder_temp");
+        window.wordBank = window.wordBank.filter(w => w.word !== "placeholder_temp");
         saveToLocalStorage();
         
         renderCategories();
@@ -724,7 +767,6 @@
     }
 
     function startQuiz() {
-      // 1. 取得所有勾選的分類
       const allCheckbox = document.getElementById("check-cat-all");
       const items = document.getElementsByName("quizCatCheckbox");
       let selectedCategories = [];
@@ -735,18 +777,16 @@
         });
       }
 
-      // 檢查是否沒有勾選類別
       if (!allCheckbox.checked && selectedCategories.length === 0) {
         alert("請至少勾選一個測驗單元分類！");
         return;
       }
 
-      // 過濾單字
       let filtered = [];
       if (allCheckbox.checked) {
-        filtered = wordBank;
+        filtered = window.wordBank;
       } else {
-        filtered = wordBank.filter(w => selectedCategories.includes(w.category));
+        filtered = window.wordBank.filter(w => selectedCategories.includes(w.category));
       }
 
       if(filtered.length < 1) {
@@ -754,10 +794,8 @@
         return;
       }
 
-      // 洗牌
       let shuffled = [...filtered].sort(() => Math.random() - 0.5);
 
-      // 決定測驗題數
       const isAll = document.getElementById("quizAllCheckbox").checked;
       let limit = shuffled.length;
       if (!isAll) {
@@ -767,42 +805,42 @@
         }
       }
 
-      currentQuizList = shuffled.slice(0, limit);
-      currentQuizIndex = 0;
-      isTransitioning = false;
-      sessionResults = []; // 重置本次測驗結果紀錄
+      window.currentQuizList = shuffled.slice(0, limit);
+      window.currentQuizIndex = 0;
+      window.isTransitioning = false;
+      window.sessionResults = []; 
       nextQuestion();
     }
 
     function resetQuiz() {
       document.getElementById("quizCard").innerHTML = `<p class="text-slate-400">請設定上方條件後，點選下方「開始測驗」</p>`;
       document.getElementById("quizProgress").innerText = "目前進度: --";
-      isTransitioning = false;
-      sessionResults = [];
+      window.isTransitioning = false;
+      window.sessionResults = [];
     }
 
     function nextQuestion() {
-      isTransitioning = false;
-      if(currentQuizIndex >= currentQuizList.length) {
-        finishAndSaveQuiz(); // 測驗結束，儲存並展示詳細紀錄結果報告
+      window.isTransitioning = false;
+      if(window.currentQuizIndex >= window.currentQuizList.length) {
+        finishAndSaveQuiz();
         return;
       }
 
-      const qObj = currentQuizList[currentQuizIndex];
+      const qObj = window.currentQuizList[window.currentQuizIndex];
       const mode = document.getElementById("quizMode").value;
-      document.getElementById("quizProgress").innerText = `進度: ${currentQuizIndex + 1} / ${currentQuizList.length}`;
+      document.getElementById("quizProgress").innerText = `進度: ${window.currentQuizIndex + 1} / ${window.currentQuizList.length}`;
 
       const card = document.getElementById("quizCard");
       card.innerHTML = "";
 
       if (mode === "engToChi") {
-        currentCorrectAnswer = qObj.translation;
-        let distractors = wordBank
-          .filter(w => w.translation !== currentCorrectAnswer)
+        window.currentCorrectAnswer = qObj.translation;
+        let distractors = window.wordBank
+          .filter(w => w.translation !== window.currentCorrectAnswer)
           .map(w => w.translation)
           .sort(() => Math.random() - 0.5)
           .slice(0, 3);
-        let options = [currentCorrectAnswer, ...distractors].sort(() => Math.random() - 0.5);
+        let options = [window.currentCorrectAnswer, ...distractors].sort(() => Math.random() - 0.5);
 
         card.innerHTML = `
           <div class="space-y-6">
@@ -821,17 +859,15 @@
             </div>
           </div>
         `;
-        // 英翻中「不自動播放發音」，需手動點擊
 
       } else if (mode === "audioToEng") {
-        // 聽音選單字模式：答案是英文字
-        currentCorrectAnswer = qObj.word;
-        let distractors = wordBank
-          .filter(w => w.word !== currentCorrectAnswer)
+        window.currentCorrectAnswer = qObj.word;
+        let distractors = window.wordBank
+          .filter(w => w.word !== window.currentCorrectAnswer)
           .map(w => w.word)
           .sort(() => Math.random() - 0.5)
           .slice(0, 3);
-        let options = [currentCorrectAnswer, ...distractors].sort(() => Math.random() - 0.5);
+        let options = [window.currentCorrectAnswer, ...distractors].sort(() => Math.random() - 0.5);
 
         card.innerHTML = `
           <div class="space-y-6">
@@ -850,7 +886,6 @@
             </div>
           </div>
         `;
-        // 【聽音選單字】「自動播放發音」
         speak(qObj.word);
 
       } else if (mode === "chiToEng") {
@@ -869,7 +904,6 @@
             </div>
           </div>
         `;
-        // 中翻英「不自動播放發音」
         document.getElementById("spellInput").focus();
 
       } else if (mode === "spellWithAudio") {
@@ -890,7 +924,6 @@
             </div>
           </div>
         `;
-        // 【聽音默寫】「自動播放發音」
         speak(qObj.word);
         document.getElementById("audioSpellInput").focus();
       }
@@ -904,46 +937,40 @@
       }
     }
 
-    // 選擇題提交 (支援英翻中與聽音選單字)
     function submitMultipleChoice(buttonElem, selected, modeType) {
-      if (isTransitioning) return;
-      const qObj = currentQuizList[currentQuizIndex];
+      if (window.isTransitioning) return;
+      const qObj = window.currentQuizList[window.currentQuizIndex];
 
-      if (selected === currentCorrectAnswer) {
-        isTransitioning = true;
-        // 答對記錄 (絕對不呼叫 markAsWrong)
-        sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: true });
+      if (selected === window.currentCorrectAnswer) {
+        window.isTransitioning = true;
+        window.sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: true });
 
-        // 答對效果
         buttonElem.className = "bg-emerald-50 border-emerald-300 text-emerald-700 p-3 rounded-xl text-sm font-semibold transition text-left focus:outline-none";
         if(modeType === 'audioToEng') {
           buttonElem.classList.add("text-center", "text-md", "font-bold");
-          speak(qObj.word); // 僅在聽音題型答對時播放音效/讀音
+          speak(qObj.word);
         }
         
         setTimeout(() => {
           proceedNext();
         }, 800); 
       } else {
-        // 答錯記錄 -> 僅在答錯時存入錯題本
-        sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: false, userAns: selected });
+        window.sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: false, userAns: selected });
         markAsWrong(qObj);
         showWrongFeedback(`答錯囉！正確答案是：<br><span class="text-xl font-extrabold text-slate-800">${qObj.word}</span> = <span class="text-md font-semibold text-slate-600">${qObj.translation}</span>`);
       }
     }
 
-    // 拼寫提交
     function submitSpelling() {
-      if (isTransitioning) return;
+      if (window.isTransitioning) return;
       const inputField = document.getElementById("spellInput");
       const feedbackDiv = document.getElementById("spellFeedback");
       const input = inputField.value.trim().toLowerCase();
-      const qObj = currentQuizList[currentQuizIndex];
+      const qObj = window.currentQuizList[window.currentQuizIndex];
 
       if(input === qObj.word.toLowerCase()) {
-        isTransitioning = true;
-        // 答對記錄 (絕對不呼叫 markAsWrong)
-        sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: true });
+        window.isTransitioning = true;
+        window.sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: true });
 
         inputField.className = "flex-grow p-3 border-2 border-emerald-500 bg-emerald-50 text-emerald-800 rounded-xl focus:outline-none font-semibold";
         feedbackDiv.className = "text-emerald-700 bg-emerald-50 border border-emerald-100 p-3 rounded-xl mt-1 text-sm font-bold text-left";
@@ -954,25 +981,22 @@
           proceedNext();
         }, 800);
       } else {
-        // 答錯記錄 -> 僅在答錯時存入錯題本
-        sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: false, userAns: input });
+        window.sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: false, userAns: input });
         markAsWrong(qObj);
         showWrongFeedback(`拼寫錯誤！<br>正確應為：<span class="text-2xl font-black text-slate-800 tracking-wider">${qObj.word}</span> (${qObj.translation})`);
       }
     }
 
-    // 聽音默寫提交
     function submitAudioSpelling() {
-      if (isTransitioning) return;
+      if (window.isTransitioning) return;
       const inputField = document.getElementById("audioSpellInput");
       const feedbackDiv = document.getElementById("audioSpellFeedback");
       const input = inputField.value.trim().toLowerCase();
-      const qObj = currentQuizList[currentQuizIndex];
+      const qObj = window.currentQuizList[window.currentQuizIndex];
 
       if(input === qObj.word.toLowerCase()) {
-        isTransitioning = true;
-        // 答對記錄 (絕對不呼叫 markAsWrong)
-        sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: true });
+        window.isTransitioning = true;
+        window.sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: true });
 
         inputField.className = "flex-grow p-3 border-2 border-emerald-500 bg-emerald-50 text-emerald-800 rounded-xl focus:outline-none font-semibold";
         feedbackDiv.className = "text-emerald-700 bg-emerald-50 border border-emerald-100 p-3 rounded-xl mt-1 text-sm font-bold text-left";
@@ -983,19 +1007,17 @@
           proceedNext();
         }, 800);
       } else {
-        // 答錯記錄 -> 僅在答錯時存入錯題本
-        sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: false, userAns: input });
+        window.sessionResults.push({ word: qObj.word, translation: qObj.translation, isCorrect: false, userAns: input });
         markAsWrong(qObj);
         showWrongFeedback(`默寫有誤！<br>正確應為：<span class="text-2xl font-black text-slate-800 tracking-wider">${qObj.word}</span> (${qObj.translation})`);
       }
     }
 
-    // 將單字標記為答錯，寫入錯題本
     function markAsWrong(qObj) {
-      if(wrongWords[qObj.word]) {
-        wrongWords[qObj.word].count += 1;
+      if(window.wrongWords[qObj.word]) {
+        window.wrongWords[qObj.word].count += 1;
       } else {
-        wrongWords[qObj.word] = { translation: qObj.translation, count: 1 };
+        window.wrongWords[qObj.word] = { translation: qObj.translation, count: 1 };
       }
       saveWrongToLocalStorage();
       renderNotebookTable();
@@ -1003,7 +1025,7 @@
 
     function showWrongFeedback(text) {
       const card = document.getElementById("quizCard");
-      const qObj = currentQuizList[currentQuizIndex];
+      const qObj = window.currentQuizList[window.currentQuizIndex];
       speak(qObj.word);
 
       card.innerHTML = `
@@ -1018,14 +1040,13 @@
     }
 
     function proceedNext() {
-      currentQuizIndex++;
+      window.currentQuizIndex++;
       nextQuestion();
     }
 
-    // 測驗結束：儲存紀錄並渲染結果
     function finishAndSaveQuiz() {
-      const correctCount = sessionResults.filter(r => r.isCorrect).length;
-      const total = sessionResults.length;
+      const correctCount = window.sessionResults.filter(r => r.isCorrect).length;
+      const total = window.sessionResults.length;
       const score = Math.round((correctCount / total) * 100);
 
       const rawMode = document.getElementById("quizMode").value;
@@ -1054,10 +1075,10 @@
         correctCount: correctCount,
         total: total,
         categories: activeCategories,
-        details: sessionResults
+        details: window.sessionResults
       };
 
-      quizHistory.unshift(record);
+      window.quizHistory.unshift(record);
       saveHistoryToLocalStorage();
       renderHistoryList(); 
 
@@ -1067,7 +1088,7 @@
     function showQuizReport(score, correctCount, total) {
       const card = document.getElementById("quizCard");
 
-      let listHTML = sessionResults.map((res, i) => {
+      let listHTML = window.sessionResults.map((res, i) => {
         return `
           <div class="flex justify-between items-center p-3 rounded-xl border ${res.isCorrect ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-red-50 border-red-100 text-red-800'} text-sm text-left">
             <div>
@@ -1109,16 +1130,17 @@
     // ================== 測驗紀錄分頁渲染 ==================
     function renderHistoryList() {
       const container = document.getElementById("historyListContainer");
+      if (!container) return;
       container.innerHTML = "";
 
-      const totalQuizzes = quizHistory.length;
+      const totalQuizzes = window.quizHistory.length;
       let averageRate = 0;
       let totalQuestions = 0;
 
       if (totalQuizzes > 0) {
-        let totalScoreSum = quizHistory.reduce((sum, item) => sum + item.score, 0);
+        let totalScoreSum = window.quizHistory.reduce((sum, item) => sum + item.score, 0);
         averageRate = Math.round(totalScoreSum / totalQuizzes);
-        totalQuestions = quizHistory.reduce((sum, item) => sum + item.total, 0);
+        totalQuestions = window.quizHistory.reduce((sum, item) => sum + item.total, 0);
       }
 
       document.getElementById("statsTotal").innerText = `${totalQuizzes} 次`;
@@ -1130,14 +1152,13 @@
         return;
       }
 
-      quizHistory.forEach((record) => {
+      window.quizHistory.forEach((record) => {
         const div = document.createElement("div");
         div.className = "bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm transition hover:shadow-md";
         
         const catBadges = record.categories.map(c => `<span class="bg-indigo-50 text-indigo-600 text-[10px] px-1.5 py-0.5 rounded font-bold">${c}</span>`).join(" ");
 
         div.innerHTML = `
-          <!-- 卡片頂部概覽 -->
           <div onclick="toggleHistoryDetails('${record.id}')" class="p-4 flex justify-between items-center cursor-pointer bg-slate-50/50 hover:bg-slate-50 transition">
             <div class="space-y-1 pr-2">
               <div class="flex items-center gap-2">
@@ -1159,7 +1180,6 @@
             </div>
           </div>
 
-          <!-- 卡片展開明細內容 -->
           <div id="details-${record.id}" class="hidden border-t border-slate-100 p-4 bg-white space-y-2">
             <p class="text-xs font-bold text-slate-400 mb-2">📜 題目對錯明細：</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
@@ -1201,7 +1221,7 @@
 
     function deleteSingleHistory(recordId) {
       if (confirm("確定要刪除此筆測驗紀錄嗎？")) {
-        quizHistory = quizHistory.filter(h => h.id.toString() !== recordId.toString());
+        window.quizHistory = window.quizHistory.filter(h => h.id.toString() !== recordId.toString());
         saveHistoryToLocalStorage();
         renderHistoryList();
       }
@@ -1209,7 +1229,7 @@
 
     function clearQuizHistory() {
       if (confirm("⚠️ 警告\n\n確定要刪除「所有」歷史測驗紀錄嗎？此動作將無法復原。")) {
-        quizHistory = [];
+        window.quizHistory = [];
         saveHistoryToLocalStorage();
         renderHistoryList();
       }
@@ -1228,16 +1248,17 @@
     // ================== 錯誤筆記本邏輯 ==================
     function renderNotebookTable() {
       const tbody = document.getElementById("notebookTableBody");
+      if (!tbody) return;
       tbody.innerHTML = "";
 
-      const keys = Object.keys(wrongWords);
+      const keys = Object.keys(window.wrongWords || {});
       if(keys.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-slate-400">目前沒有錯題，太棒了！</td></tr>`;
         return;
       }
 
       keys.forEach(word => {
-        const item = wrongWords[word];
+        const item = window.wrongWords[word];
         const tr = document.createElement("tr");
         tr.className = "border-b border-slate-50 hover:bg-slate-50 text-sm";
         tr.innerHTML = `
@@ -1258,14 +1279,14 @@
     }
 
     function removeFromNotebook(word) {
-      delete wrongWords[word];
+      delete window.wrongWords[word];
       saveWrongToLocalStorage();
       renderNotebookTable();
     }
 
     function clearWrongNotebook() {
       if(confirm("確定要清空所有的錯題紀錄嗎？")) {
-        wrongWords = {};
+        window.wrongWords = {};
         saveWrongToLocalStorage();
         renderNotebookTable();
       }
